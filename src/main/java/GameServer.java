@@ -9,29 +9,28 @@ import engine.debug.Log;
 import engine.entity.Player;
 import engine.events.HandleEvent;
 import engine.events.server.*;
-import engine.saves.SaveManager;
 import engine.server.PacketTypes;
 import engine.server.ServerBase;
+import org.fusesource.jansi.AnsiConsole;
 
 import java.io.File;
-import java.util.Scanner;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class GameServer extends ServerBase {
 	private CommandStorage commandStorage;
 	private ConcurrentHashMap<Client, Player> clients;
 
-	public GameServer(String id) {
-		super(id);
+	public GameServer() {
 		addEventHandler(this);
 		init();
 		start();
 	}
 
 	public static void main(String[] args) {
-		Scanner scanner = new Scanner(System.in);
-		System.out.println("What would you like to call this server: ");
-		new GameServer(scanner.nextLine().replace(" ", "-"));
+		new GameServer();
 	}
 
 	public CommandStorage getCommandStorage() {
@@ -40,24 +39,25 @@ public class GameServer extends ServerBase {
 
 	@HandleEvent(ServerStartEvent.PRE_INIT)
 	public void onPreInit(ServerStartEvent event) {
+
+		//Enable Console colors
+		AnsiConsole.systemInstall();
+
 		//Check for and load or create new server configuration
-		Log.info("Server Starting with ID: " + getId());
-		if (!SaveManager.checkForSaveDirectory(getId())) {
-			Log.info("No save Directory found for this save, assuming its a new save.");
-			if (SaveManager.createSaveDirectory(getId())) {
-				Config config = Config.builder()
-						.setFileName("server")
-						.setPath("saves" + File.separator + getId())
-						.addKey("ip", "localhost")
-						.addKey("port", "49056")
-						.addKey("motd", "Message of the Day!")
-						.build();
-				if (config.save()) {
-					return;
-				}
+		Log.info("Starting Server PreInitialization...");
+		if (!Files.exists(Paths.get("server.config"))) {
+			Log.info("Creating Server Configurations...");
+			Config config = Config.builder()
+					.setFileName("server")
+					.addKey("ip", "localhost")
+					.addKey("port", "49056")
+					.addKey("motd", "Message of the Day!")
+					.build();
+			if (config.save()) {
+				return;
 			}
 		} else {
-			Log.info("Found existing save with name " + getId() + " loading that save.");
+			Log.info("Initializing...");
 			return;
 		}
 		Log.error("Something went wrong during server initialization, the server will not start.");
@@ -102,6 +102,17 @@ public class GameServer extends ServerBase {
 		);
 	}
 
+	@HandleEvent(ServerStartEvent.POST_INIT)
+	public void onPostInit(ServerStartEvent event) {
+		try {
+			Config config = Config.load("server");
+			setAddress(config.getOptions().get("ip"));
+			setPort(Integer.parseInt(config.getOptions().get("port")));
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+
 	@HandleEvent(ServerStartEvent.START)
 	public void onStart(ServerStartEvent event) {
 		Log.info("Server Started.");
@@ -125,22 +136,17 @@ public class GameServer extends ServerBase {
 		Log.info("Client packet received: " + event.getUsername() + " successfully joined.");
 	}
 
-	//TODO make this use a chat opcode
 	@HandleEvent(ServerChatEvent.RECEIVED)
 	public void onChat(ServerChatEvent event) {
 		getServer().queueAndFlushToAllExcept(Packet.builder().putByte(PacketTypes.CHAT).putString(clients.get(event.getClient()).getUsername() +
 				": " + event.getMessage()), event.getClient());
 	}
 
-	@HandleEvent(ServerClientConnectionEvent.CONNECT)
-	public void onClientConnect(ServerClientConnectionEvent event) {
-		Log.info("Client attempting to establish connection.");
-	}
-
 	@HandleEvent(ServerClientConnectionEvent.POST_DISCONNECT)
 	public void postDisconnect(ServerClientConnectionEvent event) {
-		//TODO check to see if the client ever achieved player status
-		Log.info(clients.get(event.getClient()).getUsername() + " left.");
-		clients.remove(event.getClient());
+		if (clients.get(event.getClient()) != null) {
+			Log.info(clients.get(event.getClient()).getUsername() + " left.");
+			clients.remove(event.getClient());
+		}
 	}
 }
