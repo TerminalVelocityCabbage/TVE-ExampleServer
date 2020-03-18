@@ -52,7 +52,7 @@ dependencies {
 
 	implementation 'com.github.jhg023:SimpleNet:1.6.4'
 
-	compile fileTree(dir: 'lib', include: 'engine.jar')
+	compile fileTree(dir: 'lib', include: 'TerminalVelocityEngine2-all.jar')
 
 	compile group: 'org.fusesource.jansi', name: 'jansi', version: '1.8'
 
