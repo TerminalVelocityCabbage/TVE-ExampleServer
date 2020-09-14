@@ -1,0 +1,3 @@
+[submodule "terminal_velocity_engine"]
+	path = terminal_velocity_engine
+	url = https://github.com/TerminalVelocityCabbage/TerminalVelocityEngine.git
